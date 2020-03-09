@@ -10,3 +10,6 @@ Para compilar, *en pricipio* basta con:
   4. Nueva... (abajo)
   5. Donde pone nombre: **OPENCV_DIR**
   6. Donde pone valor: la ruta a la carpeta build (En el caso del ejemplo: **C:\test\opencv\build**)
+  
+Despues ya deberia compilar. Para que vaya mas rapido, cambiar la configuracion a _Release_.
+
