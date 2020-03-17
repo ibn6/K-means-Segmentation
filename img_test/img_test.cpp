@@ -140,6 +140,7 @@ void segment(cv::Mat& img, std::vector<BGR_Centroid>& centroids) {
 		++i;
 		std::cout << "Iteration " << i << ":\n";
 		modified = false;
+		// TODO Solo implementar en asm este doble bucle for
 		for (int i = 0; i < img.rows; ++i) {
 			for (int j = 0; j < img.cols; ++j) {
 				BGR_Elem elem(&img.at<Pixel>(i, j), i, j);
@@ -150,11 +151,10 @@ void segment(cv::Mat& img, std::vector<BGR_Centroid>& centroids) {
 						elem.centroid = &centroid;
 					}
 				}
-				//elem.centroid->cluster.reserve(elem.centroid->cluster.capacity() + 1);
 				elem.centroid->cluster.push_back(elem);
-				//std::cin.get();
 			}
 		}
+ 		// A partir de aqui no
 		for (auto& centroid : centroids) {
 			size_t x = 0, y = 0, z = 0;
 			for (auto& elem : centroid.cluster) {
