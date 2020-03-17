@@ -154,7 +154,8 @@ void segment(cv::Mat& img, std::vector<BGR_Centroid>& centroids) {
 				elem.centroid->cluster.push_back(elem);
 			}
 		}
- 		// A partir de aqui no
+ 		// A partir de aqui no si se ve que es complicado.
+		// Si es facil creo lo podemos hacer tambien.
 		for (auto& centroid : centroids) {
 			size_t x = 0, y = 0, z = 0;
 			for (auto& elem : centroid.cluster) {
