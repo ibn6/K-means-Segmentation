@@ -176,11 +176,13 @@ void segment(cv::Mat& img, std::vector<BGR_Centroid>& centroids) {
 				BGR_Elem elem(&img.at<Pixel>(i, j), i, j);
 				for (auto& centroid : centroids) {
 					int dist = distance(centroid.pix, *elem.pix);
+					/// Si en la primera iteracion o la distancia entre el pixel y el nuevo centro es menor que en la anterior.
 					if (elem.centroid == NULL || dist < elem.dist) {
 						elem.dist = dist;
 						elem.centroid = &centroid;
 					}
 				}
+				/// Pixel se añade al cluster.
 				elem.centroid->cluster.push_back(elem);
 			}
 		}
