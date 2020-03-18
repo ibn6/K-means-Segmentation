@@ -145,11 +145,25 @@ void push_back(std::vector<BGR_Elem>& vec, BGR_Elem& elem) {
 	vec.push_back(elem);
 }
 
+/// Convertir matriz a std::vector
+/// Para omitir el metodo img.at<>();
+std::vector<Pixel> mat2vec(cv::Mat& mat) {
+	std::vector<Pixel> array;
+	for (int i = 0; i < mat.rows; ++i)
+		for (int j = 0; j < mat.cols; ++j)
+			array.push_back(mat.at<Pixel>(i, j));
+	/// Se accede a un pixel con array[i]
+	/// Se accede a los colores con array[i].x, array[i].y, array[i].z
+
+	return array;
+}
+
 //TODO implementar esta funcion en asm
 void segment(cv::Mat& img, std::vector<BGR_Centroid>& centroids) {
 	time_t timer = clock();
 	bool modified;
 	int i = 0;
+	// auto img_vec = mat2vec(mat);
 	do {
 		++i;
 		std::cout << "Iteration " << i << ":\n";
