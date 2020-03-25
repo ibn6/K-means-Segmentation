@@ -359,7 +359,8 @@ void segment(cv::Mat& img, std::vector<BGR_Centroid>& centroids, bool ensamblado
 	for (auto& centroid : centroids)
 		for (auto& elem : centroid.cluster) 
 			*elem.img_pixel = centroid.BGR_color;
-	std::cout << ensamblador ? "Asm: " : "C++: ";
+	std::string asm_or_cpp = ensamblador ? "Asm: " : "C++: ";
+	std::cout << asm_or_cpp;
 	std::cout << (double)(clock() - timer) / CLOCKS_PER_SEC << " seconds." << std::endl;
 }
 
@@ -373,7 +374,7 @@ int BGR_segmentation(const std::string& file, const int& k) {
 	auto centroids = BGR_centroids(img, k);
 	//img.convertTo(img_hs, CV_32FC3, 1 / 255.0);
 	//cv::cvtColor(img, img_hsv, CV_BGR2Lab);
-	segment(img, centroids, true);
+	segment(img, centroids, false);
 	//cv::cvtColor(img_hsv, img, CV_Lab2BGR);
 	//img_hs.convertTo(img, 16, 255);
 
