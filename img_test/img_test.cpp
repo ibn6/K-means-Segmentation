@@ -12,6 +12,8 @@
 #include <ctime>
 #include <iomanip>
 
+bool assembly = true;
+
 typedef cv::Point3_<uint8_t> Pixel;
 //typedef cv::Point3_<float> Pixelf;
 
@@ -205,7 +207,7 @@ void organize(cv::Mat& img, std::vector<BGR_Centroid>& centroids) {
 
 /// asm implementation of the organize function
 void organize_asm(cv::Mat& img, std::vector<BGR_Centroid>& centroids) {
-	uchar* img_array_uchar = img.data;
+	Pixel* img_array_uchar = (Pixel*)img.data;
 	int total = img.cols * img.rows;
 	int pixel_size = sizeof(Pixel);
 	BGR_Centroid* centroids_array = &centroids[0];
@@ -239,11 +241,11 @@ void organize_asm(cv::Mat& img, std::vector<BGR_Centroid>& centroids) {
 			push ebx
 			// Llamada metodo distance
 			// Pixel imagen
-			movzx eax, [esi] //Pixel.x
-			movzx edx, [esi + 1] //Pixel.y
+			movzx eax, [esi]Pixel.x //Pixel.x
+			movzx edx, [esi]Pixel.y
 			shl edx, 8
 			add eax, edx
-			movzx edx, [esi + 2] //Pixel.z
+			movzx edx, [esi]Pixel.z
 			shl edx, 16
 			add eax, edx
 			push eax
@@ -374,7 +376,7 @@ int BGR_segmentation(const std::string& file, const int& k) {
 	auto centroids = BGR_centroids(img, k);
 	//img.convertTo(img_hs, CV_32FC3, 1 / 255.0);
 	//cv::cvtColor(img, img_hsv, CV_BGR2Lab);
-	segment(img, centroids, false);
+	segment(img, centroids, assembly);
 	//cv::cvtColor(img_hsv, img, CV_Lab2BGR);
 	//img_hs.convertTo(img, 16, 255);
 
