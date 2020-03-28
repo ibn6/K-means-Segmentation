@@ -12,14 +12,16 @@
 #include <ctime>
 #include <iomanip>
 
-bool assembly = true;
+bool assembly = false;
 
+typedef cv::Point3_<uint8_t> Pixel;
+typedef cv::Vec4b Pixel4;
 typedef cv::Point3_<uint8_t> Pixel;
 //typedef cv::Point3_<float> Pixelf;
 
 /// Distancia euclídea
-extern "C" int distance(const Pixel p1, const Pixel p2) {
-	return std::sqrt(std::pow(p1.x - p2.x, 2) + std::pow(p1.y - p2.y, 2) + std::pow(p1.z - p2.z, 2));
+extern "C" int distance(const Pixel4 p1, const Pixel4 p2) {
+	return std::sqrt(std::pow(p1[0] - p2[0], 2) + std::pow(p1[1] - p2[1], 2) + std::pow(p1[2] - p2[2], 2));
 }
 
 struct BGR_Centroid;
@@ -27,14 +29,14 @@ struct BGR_Centroid;
 /// Un pixel del cluster
 struct BGR_Elem {
 	/// Pixel de la imagen
-	Pixel* img_pixel;
+	Pixel4* img_pixel;
 	/// Distancia al centro del cluster
 	int dist;
 	int row, col;
 
 	BGR_Centroid* centroid;
 
-	BGR_Elem(Pixel* pix = NULL, const int& row = -1, const int& col = -1, BGR_Centroid* centroid = NULL, const int& dist = -1) {
+	BGR_Elem(Pixel4* pix = NULL, const int& row = -1, const int& col = -1, BGR_Centroid* centroid = NULL, const int& dist = -1) {
 		this->img_pixel = pix;
 		this->row = row;
 		this->col = col;
@@ -54,7 +56,7 @@ struct BGR_Elem {
 /// Centro del cluster
 struct BGR_Centroid {
 	/// Color del centro
-	Pixel BGR_color;
+	Pixel4 BGR_color;
 	int row, col;
 
 	BGR_Elem elem;
@@ -62,7 +64,7 @@ struct BGR_Centroid {
 	/// Pixels cuyo centro es este centro.
 	std::vector<BGR_Elem> cluster;
 
-	BGR_Centroid(Pixel& pix, const int& row = -1, const int& col = -1, BGR_Elem* elem = NULL) {
+	BGR_Centroid(Pixel4& pix, const int& row = -1, const int& col = -1, BGR_Elem* elem = NULL) {
 		this->BGR_color = pix;
 		this->row = row;
 		this->col = col;
@@ -74,8 +76,8 @@ struct BGR_Centroid {
 	}
 };
 
-void printPixel(const Pixel pix) {
-	std::cout << "Pix: [" << (int)pix.x << ", " << (int)pix.y << ", " << (int)pix.z << "]";
+void printPixel(const Pixel4 pix) {
+	std::cout << "Pix: [" << (int)pix[0] << ", " << (int)pix[1] << ", " << (int)pix[2] << "]";
 }
 
 void printCentroid(const BGR_Centroid& c1, const int& i, const int& k, const double& dist) {
@@ -86,7 +88,7 @@ void printCentroid(const BGR_Centroid& c1, const int& i, const int& k, const dou
 
 /// Prints the new and old color of a centroid
 void printUpdatedCentroidColor(const BGR_Centroid& c1, const size_t& x, const size_t& y, const size_t& z) {
-	std::cout << "\tCurrent color: [" << (int)c1.BGR_color.x << ", " << (int)c1.BGR_color.y << ", " << (int)c1.BGR_color.z << "]\t" //<< std::endl
+	std::cout << "\tCurrent color: [" << (int)c1.BGR_color[0] << ", " << (int)c1.BGR_color[1] << ", " << (int)c1.BGR_color[2] << "]\t" //<< std::endl
 		<< std::setw(30) << "New color: [" << x << ", " << y << ", " << z << "]";
 }
 
@@ -100,7 +102,7 @@ std::vector<BGR_Centroid> BGR_centroids(cv::Mat& img, const unsigned int& k) {
 	int col = rand() % img.cols;
 	int row = rand() % img.rows;
 
-	BGR_Centroid randomCentroid(img.at<Pixel>(row, col), row, col);
+	BGR_Centroid randomCentroid(img.at<Pixel4>(row, col), row, col);
 
 	std::vector<BGR_Centroid> centroids;
 	centroids.push_back(randomCentroid);
@@ -113,7 +115,7 @@ std::vector<BGR_Centroid> BGR_centroids(cv::Mat& img, const unsigned int& k) {
 		/// Organize each pixel in a cluster
 		for (int i = 0; i < img.rows; ++i) {
 			for (int j = 0; j < img.cols; ++j) {
-				BGR_Elem elem(&img.at<Pixel>(i, j), i, j);
+				BGR_Elem elem(&img.at<Pixel4>(i, j), i, j);
 				bool cont = false;
 
 				for (auto& centroid : centroids) {
@@ -167,30 +169,11 @@ extern "C" void push_back(std::vector<BGR_Elem>* vec, BGR_Elem* elem) {
 	vec->push_back(*elem);
 }
 
-/// Convertir matriz a std::vector
-/// Para omitir el metodo img.at<>();
-std::vector<Pixel> mat2vec(cv::Mat& mat) {
-	std::vector<Pixel> array;
-	if (mat.isContinuous()) {
-		// array.assign((float*)mat.datastart, (float*)mat.dataend); // <- has problems for sub-matrix like mat = big_mat.row(i)
-		array.assign((Pixel*)mat.data, (Pixel*)mat.data + mat.total());
-	}
-	else {
-		for (int i = 0; i < mat.rows; ++i) {
-			array.insert(array.end(), mat.ptr<Pixel>(i), mat.ptr<Pixel>(i) + mat.cols);
-		}
-	}
-	/// Se accede a un pixel con array[i]
-	/// Se accede a los colores con array[i].x, array[i].y, array[i].z
-
-	return array;
-}
-
 /// Organizes each pixel in a image to a centroid's cluster
 void organize(cv::Mat& img, std::vector<BGR_Centroid>& centroids) {
 	for (int i = 0; i < img.rows; ++i) {
 		for (int j = 0; j < img.cols; ++j) {
-			BGR_Elem elem(&img.at<Pixel>(i, j), i, j);
+			BGR_Elem elem(&img.at<Pixel4>(i, j), i, j);
 			for (auto& centroid : centroids) {
 				int dist = distance(centroid.BGR_color, *elem.img_pixel);
 				/// Si en la primera iteracion o la distancia entre el pixel y el nuevo centro es menor que en la anterior.
@@ -207,9 +190,9 @@ void organize(cv::Mat& img, std::vector<BGR_Centroid>& centroids) {
 
 /// asm implementation of the organize function
 void organize_asm(cv::Mat& img, std::vector<BGR_Centroid>& centroids) {
-	Pixel* img_array_uchar = (Pixel*)img.data;
+	Pixel4* img_array_uchar = (Pixel4*)img.data;
 	int total = img.cols * img.rows;
-	int pixel_size = sizeof(Pixel);
+	int pixel_size = sizeof(Pixel4);
 	BGR_Centroid* centroids_array = &centroids[0];
 	int centroids_array_size = centroids.size();
 	int centroid_size = sizeof(BGR_Centroid);
@@ -241,22 +224,22 @@ void organize_asm(cv::Mat& img, std::vector<BGR_Centroid>& centroids) {
 			push ebx
 			// Llamada metodo distance
 			// Pixel imagen
-			movzx eax, [esi]Pixel.x //Pixel.x
-			movzx edx, [esi]Pixel.y
+			movzx eax, [esi] //Pixel.x
+			movzx edx, [esi + 1] //Pixel.y
 			shl edx, 8
 			add eax, edx
-			movzx edx, [esi]Pixel.z
+			movzx edx, [esi + 2] //Pixel.z
 			shl edx, 16
 			add eax, edx
 			push eax
 
 			// Pixel centroid
 			lea ebx, [ecx]BGR_Centroid.BGR_color
-			movzx eax, [ebx]Pixel.x
-			movzx edx, [ebx]Pixel.y
+			movzx eax, [ebx] //Pixel.x
+			movzx edx, [ebx + 1] //Pixel.y
 			shl edx, 8
 			add eax, edx
-			movzx edx, [ebx]Pixel.z
+			movzx edx, [ebx + 2] //Pixel.z
 			shl edx, 16
 			add eax, edx
 			push eax
@@ -333,17 +316,17 @@ void segment(cv::Mat& img, std::vector<BGR_Centroid>& centroids, bool ensamblado
 		for (auto& centroid : centroids) {
 			size_t x = 0, y = 0, z = 0;
 			for (auto& elem : centroid.cluster) {
-				x += elem.img_pixel->x;
-				y += elem.img_pixel->y;
-				z += elem.img_pixel->z;
+				x += elem.img_pixel[0][0]; // PIxel.x
+				y += elem.img_pixel[0][1]; // PIxel.y
+				z += elem.img_pixel[0][2]; // PIxel.z
 			}
 			x /= centroid.cluster.size();
 			y /= centroid.cluster.size();
 			z /= centroid.cluster.size();
 			printUpdatedCentroidColor(centroid, x, y, z);
-			if (x != centroid.BGR_color.x || y != centroid.BGR_color.y || z != centroid.BGR_color.z) {
+			if (x != centroid.BGR_color[0] || y != centroid.BGR_color[1] || z != centroid.BGR_color[2]) {
 				//El nuevo color es distinto del anterior.
-				Pixel aux(x, y, z);
+				Pixel4 aux(x, y, z, 255);
 				std::cout << "\tDifference: " << distance(aux, centroid.BGR_color);
 				centroid.BGR_color = aux;
 				modified = true;
@@ -372,13 +355,43 @@ int BGR_segmentation(const std::string& file, const int& k) {
 		std::cerr << "Error reading file." << std::endl;
 		return -1;
 	}
+	auto q = img.at<Pixel>(0, 0);
+	std::cout << (int)q.x << ' ' << (int)q.y << ' ' << (int)q.z << std::endl;
+	uchar* w = img.data;
+	std::cout << (int)*w << ' ' << (int)*(w + 1) << ' ' << (int)*(w + 2) << std::endl;
+
+	cv::Mat img2;
+	/*img.convertTo(img2, CV_32FC3, 1 / 255.0);
+	auto img3 = img2.reshape(1, img2.rows * img2.cols);
+	auto img4 = img3.reshape(3, img3.rows);
+	img4.convertTo(img, CV_8UC3);*/
+	/*img2 = img.reshape(1, img.rows * img.cols * 3);
+	std::cout << img2.cols << ' ' << img2.rows << std::endl;
+	for (int i = 0; i < img2.rows; ++i) {
+		
+	}*/
+
+	img.convertTo(img2, CV_BGR2BGRA);
+	std::vector<cv::Mat> channels(4);
+	cv::split(img2, channels);
+	auto bb = channels.size();
+	cv::Mat cc = cv::Mat(channels[0].rows, channels[0].cols, CV_8UC1, cvScalar(255));
+	channels.push_back(cc);
+	cv::merge(channels, img);
+
+	cv::Vec4b a = img.at<cv::Vec4b>(0, 0);
+	std::cout << (int)a[0] << ' ' << (int)a[1] << ' ' << (int)a[2] << ' ' << (int)a[3] << std::endl;
+	auto m = &a;
+	auto mm = m[0][0];
+	uchar* e = img.data;
+	std::cout << (int)*e << ' ' << (int)*(e + 1) << ' ' << (int)*(e + 2) << ' ' << (int)*(e + 3) << std::endl;
 
 	auto centroids = BGR_centroids(img, k);
-	//img.convertTo(img_hs, CV_32FC3, 1 / 255.0);
-	//cv::cvtColor(img, img_hsv, CV_BGR2Lab);
+	////img.convertTo(img_hs, CV_32FC3, 1 / 255.0);
+	////cv::cvtColor(img, img_hsv, CV_BGR2Lab);
 	segment(img, centroids, assembly);
-	//cv::cvtColor(img_hsv, img, CV_Lab2BGR);
-	//img_hs.convertTo(img, 16, 255);
+	////cv::cvtColor(img_hsv, img, CV_Lab2BGR);
+	////img_hs.convertTo(img, 16, 255);
 
 	cv::namedWindow(file, cv::WINDOW_NORMAL);
 	cv::imshow(file, img);
@@ -400,6 +413,7 @@ int main(int argc, char**argv)
 	int k = std::stoi(argv[2]);
 	//std::string file = "test.jpg";
 	//int k = 3;
+
 	return BGR_segmentation(file, k);
 }
 
