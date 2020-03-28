@@ -224,24 +224,24 @@ void organize_asm(cv::Mat& img, std::vector<BGR_Centroid>& centroids) {
 			push ebx
 			// Llamada metodo distance
 			// Pixel imagen
-			movzx eax, [esi] //Pixel.x
-			movzx edx, [esi + 1] //Pixel.y
-			shl edx, 8
-			add eax, edx
-			movzx edx, [esi + 2] //Pixel.z
-			shl edx, 16
-			add eax, edx
+			mov eax, [esi] //Pixel.x
+			//movzx edx, [esi + 1] //Pixel.y
+			//shl edx, 8
+			//add eax, edx
+			//movzx edx, [esi + 2] //Pixel.z
+			//shl edx, 16
+			//add eax, edx
 			push eax
 
 			// Pixel centroid
 			lea ebx, [ecx]BGR_Centroid.BGR_color
-			movzx eax, [ebx] //Pixel.x
-			movzx edx, [ebx + 1] //Pixel.y
-			shl edx, 8
-			add eax, edx
-			movzx edx, [ebx + 2] //Pixel.z
-			shl edx, 16
-			add eax, edx
+			mov eax, [ebx] //Pixel.x
+			//movzx edx, [ebx + 1] //Pixel.y
+			//shl edx, 8
+			//add eax, edx
+			//movzx edx, [ebx + 2] //Pixel.z
+			//shl edx, 16
+			//add eax, edx
 			push eax
 			mov ebx, ecx
 
@@ -416,4 +416,3 @@ int main(int argc, char**argv)
 
 	return BGR_segmentation(file, k);
 }
-
