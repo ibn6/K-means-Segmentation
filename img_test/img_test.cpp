@@ -103,6 +103,8 @@ std::vector<BGR_Centroid> BGR_centroids(cv::Mat& img, const unsigned int& k) {
 	int row = rand() % img.rows;
 
 	BGR_Centroid randomCentroid(img.at<Pixel4>(row, col), row, col);
+	auto bbbb = img.channels();
+	auto aaaa = img.at<Pixel4>(0, 19);
 
 	std::vector<BGR_Centroid> centroids;
 	centroids.push_back(randomCentroid);
@@ -293,8 +295,8 @@ void organize_asm(cv::Mat& img, std::vector<BGR_Centroid>& centroids) {
 }
 
 // Implementar lo que queda de la funcion en ensamblador???
-void segment(cv::Mat& img, std::vector<BGR_Centroid>& centroids) {
-	time_t timer = clock(); 
+double segment(cv::Mat& img, std::vector<BGR_Centroid>& centroids, bool ensamblador) {
+	auto t_start = std::chrono::high_resolution_clock::now();
 	bool modified;
 	int i = 0;
 	// auto img_vec = mat2vec(mat);
@@ -304,7 +306,7 @@ void segment(cv::Mat& img, std::vector<BGR_Centroid>& centroids) {
 		modified = false;
 
 		/// Organizar cada pixel. Un cluster se forma por los pixeles mas cercanos a su centro.
-		assembly ?
+		ensamblador ?
 			organize_asm(img, centroids) :
 			organize(img, centroids);
 
@@ -341,12 +343,14 @@ void segment(cv::Mat& img, std::vector<BGR_Centroid>& centroids) {
 	std::cout << "Done" << std::endl;
 
 	/// Se pintan todos los pixeles de un cluster con el color de su centro.
-	for (auto& centroid : centroids)
+	for (auto& centroid : centroids) {
 		for (auto& elem : centroid.cluster) 
 			*elem.img_pixel = centroid.BGR_color;
-	std::string asm_or_cpp = assembly ? "Asm: " : "C++: ";
-	std::cout << asm_or_cpp;
-	std::cout << (double)(clock() - timer) / CLOCKS_PER_SEC << " seconds." << std::endl;
+		centroid.cluster.clear();
+	}
+		
+	auto t_end = std::chrono::high_resolution_clock::now();
+	return std::chrono::duration<double, std::milli>(t_end - t_start).count();
 }
 
 void extract_color(cv::Mat& img, Pixel4& color);
@@ -372,26 +376,40 @@ int BGR_segmentation(const std::string& file, const int& k) {
 		std::cerr << "Error reading file." << std::endl;
 		return -1;
 	}
+	add_channel(img);
+	//cv::namedWindow(file + " initial", cv::WINDOW_NORMAL);
+	//cv::imshow(file + " intial", img);
+	auto img2 = img.clone(), img3 = img.clone(), img4 = img.clone(), img5 = img.clone();
 
-	//auto centroids = BGR_centroids(img, k);
-	////img.convertTo(img_hs, CV_32FC3, 1 / 255.0);
-	////cv::cvtColor(img, img_hsv, CV_BGR2Lab);
-	//segment(img, centroids, assembly);
-	////cv::cvtColor(img_hsv, img, CV_Lab2BGR);
-	////img_hs.convertTo(img, 16, 255);
+	auto centroids = BGR_centroids(img, k);
+	double cpp = segment(img, centroids, false);
+	//cv::namedWindow(file + " cpp segmentation", cv::WINDOW_NORMAL);
+	//cv::imshow(file + "  cpp segmentation", img);
 
-	cv::namedWindow(file + "before", cv::WINDOW_NORMAL);
-	cv::imshow(file + "before", img);
-	//cv::imwrite(k + "out-" + file, img);
+	double assemb = segment(img2, centroids, true);
+	//cv::namedWindow(file + " asm segmentation", cv::WINDOW_NORMAL);
+	//cv::imshow(file + "  asm segmentation", img2);
 
-	!assembly ?
-		extract_color(img, img.at<Pixel4>(img.rows / 2, img.cols / 2)) :
-	!sse?
-		extract_color_asm(img, img.at<Pixel4>(img.rows / 2, img.cols / 2)):
-		extract_color_sse(img, img.at<Pixel4>(img.rows / 2, img.cols / 2));
+	cv::imwrite(k + "-out-" + file, img);
 
-	cv::namedWindow(file + "after", cv::WINDOW_NORMAL);
-	cv::imshow(file + "after", img);
+	std::cout << "Dimensions image: " << img.rows << "x" << img.cols << std::endl
+		<< "Segmentation C++: " << cpp << " ms." << std::endl
+		<< "Segmentation asm: " << assemb << " ms." << std::endl;
+
+
+	extract_color_sse(img3, img3.at<Pixel4>(img3.rows / 2, img3.cols / 2));
+	//cv::namedWindow(file + " extraer color sse", cv::WINDOW_NORMAL);
+	//cv::imshow(file + " extraer color sse", img3);
+
+	extract_color_asm(img4, img4.at<Pixel4>(img4.rows / 2, img4.cols / 2));
+	//cv::namedWindow(file + " extraer color asm", cv::WINDOW_NORMAL);
+	//cv::imshow(file + " extraer color asm", img4);
+
+	extract_color(img5, img5.at<Pixel4>(img5.rows / 2, img5.cols / 2));
+	//cv::namedWindow(file + " extraer color cpp", cv::WINDOW_NORMAL);
+	//cv::imshow(file + " extraer color cpp", img5);
+
+	cv::imwrite("-out-" + file + "-extract-color", img3);
 
 	cv::waitKey(0);
 
@@ -477,11 +495,8 @@ int main(int argc, char**argv)
 		return -1;
 	}
 
-	//std::string file = argv[1];
+	std::string file = argv[1];
 	int k = std::stoi(argv[2]);
-	std::string file = "test2.jpg";
-	//int k = 3;
 
 	return BGR_segmentation(file, k);
-	//return 0;
 }
