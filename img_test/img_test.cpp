@@ -9,19 +9,18 @@
 #include <iostream>
 #include <vector>
 #include <algorithm>
-#include <ctime>
+#include <chrono>
 #include <iomanip>
+#include <cmath>
 
 bool assembly = false;
+bool sse = false;
 
-typedef cv::Point3_<uint8_t> Pixel;
 typedef cv::Vec4b Pixel4;
-typedef cv::Point3_<uint8_t> Pixel;
-//typedef cv::Point3_<float> Pixelf;
 
 /// Distancia euclídea
-extern "C" int distance(const Pixel4 p1, const Pixel4 p2) {
-	return std::sqrt(std::pow(p1[0] - p2[0], 2) + std::pow(p1[1] - p2[1], 2) + std::pow(p1[2] - p2[2], 2));
+int distance(const Pixel4 p1, const Pixel4 p2) {
+	return (int)std::sqrt(std::pow(p1[0] - p2[0], 2) + std::pow(p1[1] - p2[1], 2) + std::pow(p1[2] - p2[2], 2));
 }
 
 struct BGR_Centroid;
@@ -92,11 +91,12 @@ void printUpdatedCentroidColor(const BGR_Centroid& c1, const size_t& x, const si
 		<< std::setw(30) << "New color: [" << x << ", " << y << ", " << z << "]";
 }
 
-// No implementar en asm, se puede sustituir por un generador de numeros aleatorios.
 /// k-means++
 /// The first centroid is a random pixel from the image, 
 /// the 2nd as the color further away from the first,
 /// and so on until there are k centroids.
+/// Can be simplified with a random number generator,
+/// but it would slow the "organize" functions down.
 std::vector<BGR_Centroid> BGR_centroids(cv::Mat& img, const unsigned int& k) {
 	clock_t timer = clock();
 	int col = rand() % img.cols;
@@ -293,7 +293,7 @@ void organize_asm(cv::Mat& img, std::vector<BGR_Centroid>& centroids) {
 }
 
 // Implementar lo que queda de la funcion en ensamblador???
-void segment(cv::Mat& img, std::vector<BGR_Centroid>& centroids, bool ensamblador) {
+void segment(cv::Mat& img, std::vector<BGR_Centroid>& centroids) {
 	time_t timer = clock(); 
 	bool modified;
 	int i = 0;
@@ -304,7 +304,7 @@ void segment(cv::Mat& img, std::vector<BGR_Centroid>& centroids, bool ensamblado
 		modified = false;
 
 		/// Organizar cada pixel. Un cluster se forma por los pixeles mas cercanos a su centro.
-		ensamblador ?
+		assembly ?
 			organize_asm(img, centroids) :
 			organize(img, centroids);
 
@@ -316,9 +316,9 @@ void segment(cv::Mat& img, std::vector<BGR_Centroid>& centroids, bool ensamblado
 		for (auto& centroid : centroids) {
 			size_t x = 0, y = 0, z = 0;
 			for (auto& elem : centroid.cluster) {
-				x += elem.img_pixel[0][0]; // PIxel.x
-				y += elem.img_pixel[0][1]; // PIxel.y
-				z += elem.img_pixel[0][2]; // PIxel.z
+				x += elem.img_pixel[0][0]; // Pixel.x
+				y += elem.img_pixel[0][1]; // Pixel.y
+				z += elem.img_pixel[0][2]; // Pixel.z
 			}
 			x /= centroid.cluster.size();
 			y /= centroid.cluster.size();
@@ -344,62 +344,130 @@ void segment(cv::Mat& img, std::vector<BGR_Centroid>& centroids, bool ensamblado
 	for (auto& centroid : centroids)
 		for (auto& elem : centroid.cluster) 
 			*elem.img_pixel = centroid.BGR_color;
-	std::string asm_or_cpp = ensamblador ? "Asm: " : "C++: ";
+	std::string asm_or_cpp = assembly ? "Asm: " : "C++: ";
 	std::cout << asm_or_cpp;
 	std::cout << (double)(clock() - timer) / CLOCKS_PER_SEC << " seconds." << std::endl;
 }
 
+void extract_color(cv::Mat& img, Pixel4& color);
+void extract_color_asm(cv::Mat& img, Pixel4& color);
+void extract_color_sse(cv::Mat& img, Pixel4& color);
+
+/// Adds an empty alpha channel to a BGR image (making it BGRA)
+void add_channel(cv::Mat& img) {
+	cv::Mat img2;
+	img.convertTo(img2, CV_BGR2BGRA);
+	std::vector<cv::Mat> channels(4);
+	cv::split(img2, channels);
+	auto bb = channels.size();
+	cv::Mat cc = cv::Mat(channels[0].rows, channels[0].cols, CV_8UC1, cvScalar(0));
+	channels.push_back(cc);
+	cv::merge(channels, img);
+}
+
+/// Segment image
 int BGR_segmentation(const std::string& file, const int& k) {
 	auto img = cv::imread(file);
 	if (!img.data) {
 		std::cerr << "Error reading file." << std::endl;
 		return -1;
 	}
-	auto q = img.at<Pixel>(0, 0);
-	std::cout << (int)q.x << ' ' << (int)q.y << ' ' << (int)q.z << std::endl;
-	uchar* w = img.data;
-	std::cout << (int)*w << ' ' << (int)*(w + 1) << ' ' << (int)*(w + 2) << std::endl;
 
-	cv::Mat img2;
-	/*img.convertTo(img2, CV_32FC3, 1 / 255.0);
-	auto img3 = img2.reshape(1, img2.rows * img2.cols);
-	auto img4 = img3.reshape(3, img3.rows);
-	img4.convertTo(img, CV_8UC3);*/
-	/*img2 = img.reshape(1, img.rows * img.cols * 3);
-	std::cout << img2.cols << ' ' << img2.rows << std::endl;
-	for (int i = 0; i < img2.rows; ++i) {
-		
-	}*/
-
-	img.convertTo(img2, CV_BGR2BGRA);
-	std::vector<cv::Mat> channels(4);
-	cv::split(img2, channels);
-	auto bb = channels.size();
-	cv::Mat cc = cv::Mat(channels[0].rows, channels[0].cols, CV_8UC1, cvScalar(255));
-	channels.push_back(cc);
-	cv::merge(channels, img);
-
-	cv::Vec4b a = img.at<cv::Vec4b>(0, 0);
-	std::cout << (int)a[0] << ' ' << (int)a[1] << ' ' << (int)a[2] << ' ' << (int)a[3] << std::endl;
-	auto m = &a;
-	auto mm = m[0][0];
-	uchar* e = img.data;
-	std::cout << (int)*e << ' ' << (int)*(e + 1) << ' ' << (int)*(e + 2) << ' ' << (int)*(e + 3) << std::endl;
-
-	auto centroids = BGR_centroids(img, k);
+	//auto centroids = BGR_centroids(img, k);
 	////img.convertTo(img_hs, CV_32FC3, 1 / 255.0);
 	////cv::cvtColor(img, img_hsv, CV_BGR2Lab);
-	segment(img, centroids, assembly);
+	//segment(img, centroids, assembly);
 	////cv::cvtColor(img_hsv, img, CV_Lab2BGR);
 	////img_hs.convertTo(img, 16, 255);
 
-	cv::namedWindow(file, cv::WINDOW_NORMAL);
-	cv::imshow(file, img);
-	cv::imwrite(k + "out-" + file, img);
+	cv::namedWindow(file + "before", cv::WINDOW_NORMAL);
+	cv::imshow(file + "before", img);
+	//cv::imwrite(k + "out-" + file, img);
+
+	!assembly ?
+		extract_color(img, img.at<Pixel4>(img.rows / 2, img.cols / 2)) :
+	!sse?
+		extract_color_asm(img, img.at<Pixel4>(img.rows / 2, img.cols / 2)):
+		extract_color_sse(img, img.at<Pixel4>(img.rows / 2, img.cols / 2));
+
+	cv::namedWindow(file + "after", cv::WINDOW_NORMAL);
+	cv::imshow(file + "after", img);
 
 	cv::waitKey(0);
 
 	return 0;
+}
+
+/// Extracts the color (defined by the parameter color) from the image (img)
+/// by performing BITWISE AND on every pixel with the inverse of the color.
+void extract_color(cv::Mat& img, Pixel4& color) {
+	auto t_start = std::chrono::high_resolution_clock::now();
+	unsigned mask = ~*(unsigned*)&color; /// Color inversed
+	unsigned* data = (unsigned*)img.data;
+	for (int i = 0; i < img.rows * img.cols; ++i, ++data)
+		*data &= mask; /// Bitwised AND
+	auto t_end = std::chrono::high_resolution_clock::now();
+	std::cout << "Extracted color in C++: " << std::chrono::duration<double, std::milli>(t_end - t_start).count() << " ms." << std::endl;
+}
+
+/// Version of the "extract" function in asm
+void extract_color_asm(cv::Mat& img, Pixel4& color) {
+	auto t_start = std::chrono::high_resolution_clock::now();
+	int total = img.rows * img.cols;
+	unsigned color_int = *(unsigned*)&color;
+	uchar* data = img.data;
+	__asm {
+		mov ecx, color_int
+		not ecx
+		mov ebx, data // img
+		xor eax, eax // i = 0
+		_start_loop:
+		mov edx, total 
+		cmp eax, edx 
+		je _end_loop 
+
+			mov edx, [ebx]
+			and edx, ecx 
+			mov [ebx], edx
+
+		inc eax 
+		add ebx, 4
+		jmp _start_loop
+		_end_loop:
+	}
+	auto t_end = std::chrono::high_resolution_clock::now();
+	std::cout << "Extracted color in asm: " << std::chrono::duration<double, std::milli>(t_end - t_start).count() << " ms." << std::endl;
+}
+
+/// Version of the "extract" function in asm sse
+void extract_color_sse(cv::Mat& img, Pixel4& color) {
+	auto t_start = std::chrono::high_resolution_clock::now();
+	int total = img.rows * img.cols;
+	unsigned color_int = *(unsigned*)&color; // Cast 
+	uchar* data = img.data;
+	__asm {
+		mov ecx, color_int
+		not ecx
+		movd xmm1, ecx 
+		shufps xmm1, xmm1, 0x00 // mascara repetida x4
+		mov ebx, data // img
+		xor eax, eax // i = 0
+		_start_loop :
+		mov edx, total
+		cmp eax, edx
+		jge _end_loop
+
+			movaps xmm2, [ebx]
+			andps xmm2, xmm1
+			movaps [ebx], xmm2
+
+		add eax, 4
+		add ebx, 16
+		jmp _start_loop
+		_end_loop :
+	}
+	auto t_end = std::chrono::high_resolution_clock::now();
+	std::cout << "Extracted color in sse: " << std::chrono::duration<double, std::milli>(t_end - t_start).count() << " ms." << std::endl;
 }
 
 int main(int argc, char**argv)
@@ -409,10 +477,11 @@ int main(int argc, char**argv)
 		return -1;
 	}
 
-	std::string file = argv[1];
+	//std::string file = argv[1];
 	int k = std::stoi(argv[2]);
-	//std::string file = "test.jpg";
+	std::string file = "test2.jpg";
 	//int k = 3;
 
 	return BGR_segmentation(file, k);
+	//return 0;
 }
