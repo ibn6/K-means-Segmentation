@@ -506,6 +506,7 @@ int main(int argc, char**argv)
 	for (int i = 0; i < executions; ++i)
 		if (BGR_segmentation(file, k, times))
 			return 1;
+	std::cout << std::endl << std::endl << "Number of executions: " << executions << std::endl;
 
 	std::cout << "Min time cpp segmentation: " << *std::min_element(times.cpp_segmentation.begin(), times.cpp_segmentation.end()) << " ms." << std::endl;
 	std::cout << "Min time asm segmentation: " << *std::min_element(times.asm_segmentation.begin(), times.asm_segmentation.end()) << " ms." << std::endl;
