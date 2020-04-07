@@ -501,9 +501,9 @@ int main(int argc, char**argv)
 	int k = std::stoi(argv[2]);
 	Times times;
 
-	int times_to_run = 5;
+	int executions = 5;
 
-	for (int i = 0; i < times_to_run; ++i)
+	for (int i = 0; i < executions; ++i)
 		if (BGR_segmentation(file, k, times))
 			return 1;
 
@@ -519,10 +519,10 @@ int main(int argc, char**argv)
 	std::cout << "Max time asm color: " << *std::max_element(times.asm_color.begin(), times.asm_color.end()) << " ms." << std::endl;
 	std::cout << "Max time sse color: " << *std::max_element(times.sse_color.begin(), times.sse_color.end()) << " ms." << std::endl;
 
-	std::cout << "Avg time cpp segmentation: " << std::accumulate(times.cpp_segmentation.begin(), times.cpp_segmentation.end(), 0.0) / times_to_run << " ms." << std::endl;
-	std::cout << "Avg time asm segmentation: " << std::accumulate(times.asm_segmentation.begin(), times.asm_segmentation.end(), 0.0) / times_to_run << " ms." << std::endl;
-	std::cout << "Avg time cpp color: " << std::accumulate(times.cpp_color.begin(), times.cpp_color.end(), 0.0) / times_to_run << " ms." << std::endl;
-	std::cout << "Avg time asm color: " << std::accumulate(times.asm_color.begin(), times.asm_color.end(), 0.0) / times_to_run << " ms." << std::endl;
-	std::cout << "Avg time sse color: " << std::accumulate(times.sse_color.begin(), times.sse_color.end(), 0.0) / times_to_run << " ms." << std::endl;
+	std::cout << "Avg time cpp segmentation: " << std::accumulate(times.cpp_segmentation.begin(), times.cpp_segmentation.end(), 0.0) / executions << " ms." << std::endl;
+	std::cout << "Avg time asm segmentation: " << std::accumulate(times.asm_segmentation.begin(), times.asm_segmentation.end(), 0.0) / executions << " ms." << std::endl;
+	std::cout << "Avg time cpp color: " << std::accumulate(times.cpp_color.begin(), times.cpp_color.end(), 0.0) / executions << " ms." << std::endl;
+	std::cout << "Avg time asm color: " << std::accumulate(times.asm_color.begin(), times.asm_color.end(), 0.0) / executions << " ms." << std::endl;
+	std::cout << "Avg time sse color: " << std::accumulate(times.sse_color.begin(), times.sse_color.end(), 0.0) / executions << " ms." << std::endl;
 	return 0;
 }
