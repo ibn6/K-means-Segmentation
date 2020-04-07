@@ -12,11 +12,20 @@
 #include <chrono>
 #include <iomanip>
 #include <cmath>
+#include <numeric>
 
 bool assembly = false;
 bool sse = false;
 
 typedef cv::Vec4b Pixel4;
+
+struct Times {
+	std::vector<double> cpp_segmentation;
+	std::vector<double> asm_segmentation;
+	std::vector<double> cpp_color;
+	std::vector<double> asm_color;
+	std::vector<double> sse_color;
+};
 
 /// Distancia euclídea
 int distance(const Pixel4 p1, const Pixel4 p2) {
@@ -353,9 +362,9 @@ double segment(cv::Mat& img, std::vector<BGR_Centroid>& centroids, bool ensambla
 	return std::chrono::duration<double, std::milli>(t_end - t_start).count();
 }
 
-void extract_color(cv::Mat& img, Pixel4& color);
-void extract_color_asm(cv::Mat& img, Pixel4& color);
-void extract_color_sse(cv::Mat& img, Pixel4& color);
+double extract_color(cv::Mat& img, Pixel4& color);
+double extract_color_asm(cv::Mat& img, Pixel4& color);
+double extract_color_sse(cv::Mat& img, Pixel4& color);
 
 /// Adds an empty alpha channel to a BGR image (making it BGRA)
 void add_channel(cv::Mat& img) {
@@ -370,7 +379,7 @@ void add_channel(cv::Mat& img) {
 }
 
 /// Segment image
-int BGR_segmentation(const std::string& file, const int& k) {
+int BGR_segmentation(const std::string& file, const int& k, Times& times) {
 	auto img = cv::imread(file);
 	if (!img.data) {
 		std::cerr << "Error reading file." << std::endl;
@@ -382,30 +391,25 @@ int BGR_segmentation(const std::string& file, const int& k) {
 	auto img2 = img.clone(), img3 = img.clone(), img4 = img.clone(), img5 = img.clone();
 
 	auto centroids = BGR_centroids(img, k);
-	double cpp = segment(img, centroids, false);
+	times.cpp_segmentation.emplace_back(segment(img, centroids, false));
 	//cv::namedWindow(file + " cpp segmentation", cv::WINDOW_NORMAL);
 	//cv::imshow(file + "  cpp segmentation", img);
 
-	double assemb = segment(img2, centroids, true);
+	times.asm_segmentation.emplace_back(segment(img2, centroids, true));
 	//cv::namedWindow(file + " asm segmentation", cv::WINDOW_NORMAL);
 	//cv::imshow(file + "  asm segmentation", img2);
 
 	cv::imwrite(k + "-out-" + file, img);
 
-	std::cout << "Dimensions image: " << img.rows << "x" << img.cols << std::endl
-		<< "Segmentation C++: " << cpp << " ms." << std::endl
-		<< "Segmentation asm: " << assemb << " ms." << std::endl;
-
-
-	extract_color_sse(img3, img3.at<Pixel4>(img3.rows / 2, img3.cols / 2));
+	times.sse_color.emplace_back(extract_color_sse(img3, img3.at<Pixel4>(img3.rows / 2, img3.cols / 2)));
 	//cv::namedWindow(file + " extraer color sse", cv::WINDOW_NORMAL);
 	//cv::imshow(file + " extraer color sse", img3);
 
-	extract_color_asm(img4, img4.at<Pixel4>(img4.rows / 2, img4.cols / 2));
+	times.asm_color.emplace_back(extract_color_asm(img4, img4.at<Pixel4>(img4.rows / 2, img4.cols / 2)));
 	//cv::namedWindow(file + " extraer color asm", cv::WINDOW_NORMAL);
 	//cv::imshow(file + " extraer color asm", img4);
 
-	extract_color(img5, img5.at<Pixel4>(img5.rows / 2, img5.cols / 2));
+	times.cpp_color.emplace_back(extract_color(img5, img5.at<Pixel4>(img5.rows / 2, img5.cols / 2)));
 	//cv::namedWindow(file + " extraer color cpp", cv::WINDOW_NORMAL);
 	//cv::imshow(file + " extraer color cpp", img5);
 
@@ -418,25 +422,24 @@ int BGR_segmentation(const std::string& file, const int& k) {
 
 /// Extracts the color (defined by the parameter color) from the image (img)
 /// by performing BITWISE AND on every pixel with the inverse of the color.
-void extract_color(cv::Mat& img, Pixel4& color) {
+double extract_color(cv::Mat& img, Pixel4& color) {
 	auto t_start = std::chrono::high_resolution_clock::now();
-	unsigned mask = ~*(unsigned*)&color; /// Color inversed
+	unsigned mask = *(unsigned*)&color; /// Color mask
 	unsigned* data = (unsigned*)img.data;
 	for (int i = 0; i < img.rows * img.cols; ++i, ++data)
 		*data &= mask; /// Bitwised AND
 	auto t_end = std::chrono::high_resolution_clock::now();
-	std::cout << "Extracted color in C++: " << std::chrono::duration<double, std::milli>(t_end - t_start).count() << " ms." << std::endl;
+	return std::chrono::duration<double, std::milli>(t_end - t_start).count();
 }
 
 /// Version of the "extract" function in asm
-void extract_color_asm(cv::Mat& img, Pixel4& color) {
+double extract_color_asm(cv::Mat& img, Pixel4& color) {
 	auto t_start = std::chrono::high_resolution_clock::now();
 	int total = img.rows * img.cols;
 	unsigned color_int = *(unsigned*)&color;
 	uchar* data = img.data;
 	__asm {
 		mov ecx, color_int
-		not ecx
 		mov ebx, data // img
 		xor eax, eax // i = 0
 		_start_loop:
@@ -454,18 +457,17 @@ void extract_color_asm(cv::Mat& img, Pixel4& color) {
 		_end_loop:
 	}
 	auto t_end = std::chrono::high_resolution_clock::now();
-	std::cout << "Extracted color in asm: " << std::chrono::duration<double, std::milli>(t_end - t_start).count() << " ms." << std::endl;
+	return std::chrono::duration<double, std::milli>(t_end - t_start).count();
 }
 
 /// Version of the "extract" function in asm sse
-void extract_color_sse(cv::Mat& img, Pixel4& color) {
+double extract_color_sse(cv::Mat& img, Pixel4& color) {
 	auto t_start = std::chrono::high_resolution_clock::now();
 	int total = img.rows * img.cols;
 	unsigned color_int = *(unsigned*)&color; // Cast 
 	uchar* data = img.data;
 	__asm {
 		mov ecx, color_int
-		not ecx
 		movd xmm1, ecx 
 		shufps xmm1, xmm1, 0x00 // mascara repetida x4
 		mov ebx, data // img
@@ -485,7 +487,7 @@ void extract_color_sse(cv::Mat& img, Pixel4& color) {
 		_end_loop :
 	}
 	auto t_end = std::chrono::high_resolution_clock::now();
-	std::cout << "Extracted color in sse: " << std::chrono::duration<double, std::milli>(t_end - t_start).count() << " ms." << std::endl;
+	return std::chrono::duration<double, std::milli>(t_end - t_start).count();
 }
 
 int main(int argc, char**argv)
@@ -497,6 +499,30 @@ int main(int argc, char**argv)
 
 	std::string file = argv[1];
 	int k = std::stoi(argv[2]);
+	Times times;
 
-	return BGR_segmentation(file, k);
+	int times_to_run = 5;
+
+	for (int i = 0; i < times_to_run; ++i)
+		if (BGR_segmentation(file, k, times))
+			return 1;
+
+	std::cout << "Min time cpp segmentation: " << *std::min_element(times.cpp_segmentation.begin(), times.cpp_segmentation.end()) << " ms." << std::endl;
+	std::cout << "Min time asm segmentation: " << *std::min_element(times.asm_segmentation.begin(), times.asm_segmentation.end()) << " ms." << std::endl;
+	std::cout << "Min time cpp color: " << *std::min_element(times.cpp_color.begin(), times.cpp_color.end()) << " ms." << std::endl;
+	std::cout << "Min time asm color: " << *std::min_element(times.asm_color.begin(), times.asm_color.end()) << " ms." << std::endl;
+	std::cout << "Min time sse color: " << *std::min_element(times.sse_color.begin(), times.sse_color.end()) << " ms." << std::endl;
+
+	std::cout << "Max time cpp segmentation: " << *std::max_element(times.cpp_segmentation.begin(), times.cpp_segmentation.end()) << " ms." << std::endl;
+	std::cout << "Max time asm segmentation: " << *std::max_element(times.asm_segmentation.begin(), times.asm_segmentation.end()) << " ms." << std::endl;
+	std::cout << "Max time cpp color: " << *std::max_element(times.cpp_color.begin(), times.cpp_color.end()) << " ms." << std::endl;
+	std::cout << "Max time asm color: " << *std::max_element(times.asm_color.begin(), times.asm_color.end()) << " ms." << std::endl;
+	std::cout << "Max time sse color: " << *std::max_element(times.sse_color.begin(), times.sse_color.end()) << " ms." << std::endl;
+
+	std::cout << "Avg time cpp segmentation: " << std::accumulate(times.cpp_segmentation.begin(), times.cpp_segmentation.end(), 0.0) / times_to_run << " ms." << std::endl;
+	std::cout << "Avg time asm segmentation: " << std::accumulate(times.asm_segmentation.begin(), times.asm_segmentation.end(), 0.0) / times_to_run << " ms." << std::endl;
+	std::cout << "Avg time cpp color: " << std::accumulate(times.cpp_color.begin(), times.cpp_color.end(), 0.0) / times_to_run << " ms." << std::endl;
+	std::cout << "Avg time asm color: " << std::accumulate(times.asm_color.begin(), times.asm_color.end(), 0.0) / times_to_run << " ms." << std::endl;
+	std::cout << "Avg time sse color: " << std::accumulate(times.sse_color.begin(), times.sse_color.end(), 0.0) / times_to_run << " ms." << std::endl;
+	return 0;
 }
