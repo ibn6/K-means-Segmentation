@@ -14,8 +14,7 @@
 #include <cmath>
 #include <numeric>
 
-bool assembly = false;
-bool sse = false;
+bool segmentation = false;
 
 typedef cv::Vec4b Pixel4;
 
@@ -390,20 +389,21 @@ int BGR_segmentation(const std::string& file, const int& k, Times& times, const 
 	//cv::imshow(file + " intial", img);
 	auto img2 = img.clone(), img3 = img.clone(), img4 = img.clone(), img5 = img.clone();
 
-	auto centroids = BGR_centroids(img, k);
-	times.cpp_segmentation.emplace_back(segment(img, centroids, false));
-	std::cout << "C++ segmentation " << i << " : " << times.cpp_segmentation[i] << std::endl;
-	if (i == 0) {
-		cv::namedWindow("segmentation", cv::WINDOW_NORMAL);
-		cv::imshow("cpp segmentation", img);
-		cv::imwrite(file + "-segmentation.jpg", img);
+	if (segmentation) {
+		auto centroids = BGR_centroids(img, k);
+		times.cpp_segmentation.emplace_back(segment(img, centroids, false));
+		std::cout << "C++ segmentation " << i << " : " << times.cpp_segmentation[i] << std::endl;
+		if (i == 0) {
+			cv::namedWindow("cpp segmentation", cv::WINDOW_NORMAL);
+			cv::imshow("cpp segmentation", img);
+			cv::imwrite(file + "-segmentation.jpg", img);
+		}
+
+		times.asm_segmentation.emplace_back(segment(img2, centroids, true));
+		std::cout << "Asm segmentation " << i << " : " << times.asm_segmentation[i] << std::endl;
+		//cv::namedWindow(file + " asm segmentation", cv::WINDOW_NORMAL);
+		//cv::imshow(file + "  asm segmentation", img2);
 	}
-
-	times.asm_segmentation.emplace_back(segment(img2, centroids, true));
-	std::cout << "Asm segmentation " << i << " : " << times.asm_segmentation[i] << std::endl;
-	//cv::namedWindow(file + " asm segmentation", cv::WINDOW_NORMAL);
-	//cv::imshow(file + "  asm segmentation", img2);
-
 
 	times.sse_color.emplace_back(extract_color_sse(img3, img3.at<Pixel4>(img3.rows / 2, img3.cols / 2)));
 	std::cout << "Sse color " << i << " : " << times.sse_color[i] << std::endl;
@@ -521,23 +521,32 @@ int main(int argc, char**argv)
 	std::cout << std::endl << std::endl << "Number of executions: " << executions << std::endl;
 	auto img = cv::imread(file);
 	if (img.data) {
-		std::cout << "Image: " << argv[1] << ". Size: " << img.rows << "x" << img.cols << ". K = " << std::stoi(argv[2]) << std::endl;
+		cv::namedWindow("original", cv::WINDOW_NORMAL);
+		cv::imshow("original", img);
+		std::cout << "Image: " << argv[1] << ". Size: " << img.rows << "x" << img.cols << " = " << img.rows * img.cols << ". K = " << std::stoi(argv[2]) << std::endl;
 	}
 
-	std::cout << "Min time cpp segmentation: " << *std::min_element(times.cpp_segmentation.begin(), times.cpp_segmentation.end()) << " ms." << std::endl;
-	std::cout << "Min time asm segmentation: " << *std::min_element(times.asm_segmentation.begin(), times.asm_segmentation.end()) << " ms." << std::endl;
+	if (segmentation) {
+		std::cout << "Min time cpp segmentation: " << *std::min_element(times.cpp_segmentation.begin(), times.cpp_segmentation.end()) << " ms." << std::endl;
+		std::cout << "Min time asm segmentation: " << *std::min_element(times.asm_segmentation.begin(), times.asm_segmentation.end()) << " ms." << std::endl;
+	}
 	std::cout << "Min time cpp color: " << *std::min_element(times.cpp_color.begin(), times.cpp_color.end()) << " ms." << std::endl;
 	std::cout << "Min time asm color: " << *std::min_element(times.asm_color.begin(), times.asm_color.end()) << " ms." << std::endl;
 	std::cout << "Min time sse color: " << *std::min_element(times.sse_color.begin(), times.sse_color.end()) << " ms." << std::endl;
 
-	std::cout << "Max time cpp segmentation: " << *std::max_element(times.cpp_segmentation.begin(), times.cpp_segmentation.end()) << " ms." << std::endl;
-	std::cout << "Max time asm segmentation: " << *std::max_element(times.asm_segmentation.begin(), times.asm_segmentation.end()) << " ms." << std::endl;
+	if (segmentation) {
+		std::cout << "Max time cpp segmentation: " << *std::max_element(times.cpp_segmentation.begin(), times.cpp_segmentation.end()) << " ms." << std::endl;
+		std::cout << "Max time asm segmentation: " << *std::max_element(times.asm_segmentation.begin(), times.asm_segmentation.end()) << " ms." << std::endl;
+	}
 	std::cout << "Max time cpp color: " << *std::max_element(times.cpp_color.begin(), times.cpp_color.end()) << " ms." << std::endl;
 	std::cout << "Max time asm color: " << *std::max_element(times.asm_color.begin(), times.asm_color.end()) << " ms." << std::endl;
 	std::cout << "Max time sse color: " << *std::max_element(times.sse_color.begin(), times.sse_color.end()) << " ms." << std::endl;
+	
 
-	std::cout << "Avg time cpp segmentation: " << std::accumulate(times.cpp_segmentation.begin(), times.cpp_segmentation.end(), 0.0) / executions << " ms." << std::endl;
-	std::cout << "Avg time asm segmentation: " << std::accumulate(times.asm_segmentation.begin(), times.asm_segmentation.end(), 0.0) / executions << " ms." << std::endl;
+	if (segmentation) {
+		std::cout << "Avg time cpp segmentation: " << std::accumulate(times.cpp_segmentation.begin(), times.cpp_segmentation.end(), 0.0) / executions << " ms." << std::endl;
+		std::cout << "Avg time asm segmentation: " << std::accumulate(times.asm_segmentation.begin(), times.asm_segmentation.end(), 0.0) / executions << " ms." << std::endl;
+	}
 	std::cout << "Avg time cpp color: " << std::accumulate(times.cpp_color.begin(), times.cpp_color.end(), 0.0) / executions << " ms." << std::endl;
 	std::cout << "Avg time asm color: " << std::accumulate(times.asm_color.begin(), times.asm_color.end(), 0.0) / executions << " ms." << std::endl;
 	std::cout << "Avg time sse color: " << std::accumulate(times.sse_color.begin(), times.sse_color.end(), 0.0) / executions << " ms." << std::endl;
