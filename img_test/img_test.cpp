@@ -119,7 +119,7 @@ std::vector<BGR_Centroid> BGR_centroids(cv::Mat& img, const unsigned int& k) {
 	centroids.push_back(randomCentroid);
 	BGR_Elem trash;
 	int counter = 1;
-	printCentroid(randomCentroid, counter, k, 0);
+	//printCentroid(randomCentroid, counter, k, 0);
 
 	while (centroids.size() < k) {
 		counter++;
@@ -168,10 +168,10 @@ std::vector<BGR_Centroid> BGR_centroids(cv::Mat& img, const unsigned int& k) {
 		/// Clean-up
 		for (auto& centroid : centroids)
 			centroid.elem = trash;
-		printCentroid(newCentroid, counter, k, dist);
+		//printCentroid(newCentroid, counter, k, dist);
 	}
-	std::cout << "Created centroids in: ";
-	std::cout << (double)(clock() - timer) / CLOCKS_PER_SEC << " seconds." << std::endl;
+	//std::cout << "Created centroids in: ";
+	//std::cout << (double)(clock() - timer) / CLOCKS_PER_SEC << " seconds." << std::endl;
 	return centroids;
 }
 
@@ -311,7 +311,7 @@ double segment(cv::Mat& img, std::vector<BGR_Centroid>& centroids, bool ensambla
 	// auto img_vec = mat2vec(mat);
 	do {
 		++i;
-		std::cout << "Iteration " << i << ":\n";
+		//std::cout << "Iteration " << i << ":\n";
 		modified = false;
 
 		/// Organizar cada pixel. Un cluster se forma por los pixeles mas cercanos a su centro.
@@ -334,22 +334,22 @@ double segment(cv::Mat& img, std::vector<BGR_Centroid>& centroids, bool ensambla
 			x /= centroid.cluster.size();
 			y /= centroid.cluster.size();
 			z /= centroid.cluster.size();
-			printUpdatedCentroidColor(centroid, x, y, z);
+			//printUpdatedCentroidColor(centroid, x, y, z);
 			if (x != centroid.BGR_color[0] || y != centroid.BGR_color[1] || z != centroid.BGR_color[2]) {
 				//El nuevo color es distinto del anterior.
 				Pixel4 aux(x, y, z, 255);
-				std::cout << "\tDifference: " << distance(aux, centroid.BGR_color);
+				//std::cout << "\tDifference: " << distance(aux, centroid.BGR_color);
 				centroid.BGR_color = aux;
 				modified = true;
 			}
-			std::cout << std::endl;
+			//std::cout << std::endl;
 		}
 		if (modified)
 			for (auto& centroid : centroids)
 				centroid.cluster.clear();
 	} while (modified);
 
-	std::cout << "Done" << std::endl;
+	//std::cout << "Done" << std::endl;
 
 	/// Se pintan todos los pixeles de un cluster con el color de su centro.
 	for (auto& centroid : centroids) {
@@ -379,7 +379,7 @@ void add_channel(cv::Mat& img) {
 }
 
 /// Segment image
-int BGR_segmentation(const std::string& file, const int& k, Times& times) {
+int BGR_segmentation(const std::string& file, const int& k, Times& times, const int& i) {
 	auto img = cv::imread(file);
 	if (!img.data) {
 		std::cerr << "Error reading file." << std::endl;
@@ -392,30 +392,40 @@ int BGR_segmentation(const std::string& file, const int& k, Times& times) {
 
 	auto centroids = BGR_centroids(img, k);
 	times.cpp_segmentation.emplace_back(segment(img, centroids, false));
-	//cv::namedWindow(file + " cpp segmentation", cv::WINDOW_NORMAL);
-	//cv::imshow(file + "  cpp segmentation", img);
+	std::cout << "C++ segmentation " << i << " : " << times.cpp_segmentation[i] << std::endl;
+	if (i == 0) {
+		cv::namedWindow("segmentation", cv::WINDOW_NORMAL);
+		cv::imshow("cpp segmentation", img);
+		cv::imwrite(file + "-segmentation.jpg", img);
+	}
 
 	times.asm_segmentation.emplace_back(segment(img2, centroids, true));
+	std::cout << "Asm segmentation " << i << " : " << times.asm_segmentation[i] << std::endl;
 	//cv::namedWindow(file + " asm segmentation", cv::WINDOW_NORMAL);
 	//cv::imshow(file + "  asm segmentation", img2);
 
-	cv::imwrite(k + "-out-" + file, img);
 
 	times.sse_color.emplace_back(extract_color_sse(img3, img3.at<Pixel4>(img3.rows / 2, img3.cols / 2)));
+	std::cout << "Sse color " << i << " : " << times.sse_color[i] << std::endl;
 	//cv::namedWindow(file + " extraer color sse", cv::WINDOW_NORMAL);
 	//cv::imshow(file + " extraer color sse", img3);
 
 	times.asm_color.emplace_back(extract_color_asm(img4, img4.at<Pixel4>(img4.rows / 2, img4.cols / 2)));
+	std::cout << "Asm color " << i << " : " << times.asm_color[i] << std::endl;
 	//cv::namedWindow(file + " extraer color asm", cv::WINDOW_NORMAL);
 	//cv::imshow(file + " extraer color asm", img4);
 
 	times.cpp_color.emplace_back(extract_color(img5, img5.at<Pixel4>(img5.rows / 2, img5.cols / 2)));
-	//cv::namedWindow(file + " extraer color cpp", cv::WINDOW_NORMAL);
-	//cv::imshow(file + " extraer color cpp", img5);
+	std::cout << "C++ color " << i << " : " << times.cpp_color[i] << std::endl;
 
-	cv::imwrite("-out-" + file + "-extract-color", img3);
+	if (i == 0) {
+		cv::namedWindow("extraer color", cv::WINDOW_NORMAL);
+		cv::imshow("extraer color", img5);
+		cv::imwrite(file + "-extract-color.jpg", img5);
+	}
+	
 
-	cv::waitKey(0);
+	//cv::waitKey(0);
 
 	return 0;
 }
@@ -503,10 +513,16 @@ int main(int argc, char**argv)
 
 	int executions = 5;
 
-	for (int i = 0; i < executions; ++i)
-		if (BGR_segmentation(file, k, times))
+	for (int i = 0; i < executions; ++i) {
+		if (BGR_segmentation(file, k, times, i))
 			return 1;
+		std::cout << std::endl;
+	}
 	std::cout << std::endl << std::endl << "Number of executions: " << executions << std::endl;
+	auto img = cv::imread(file);
+	if (img.data) {
+		std::cout << "Image: " << argv[1] << ". Size: " << img.rows << "x" << img.cols << ". K = " << std::stoi(argv[2]) << std::endl;
+	}
 
 	std::cout << "Min time cpp segmentation: " << *std::min_element(times.cpp_segmentation.begin(), times.cpp_segmentation.end()) << " ms." << std::endl;
 	std::cout << "Min time asm segmentation: " << *std::min_element(times.asm_segmentation.begin(), times.asm_segmentation.end()) << " ms." << std::endl;
@@ -525,5 +541,6 @@ int main(int argc, char**argv)
 	std::cout << "Avg time cpp color: " << std::accumulate(times.cpp_color.begin(), times.cpp_color.end(), 0.0) / executions << " ms." << std::endl;
 	std::cout << "Avg time asm color: " << std::accumulate(times.asm_color.begin(), times.asm_color.end(), 0.0) / executions << " ms." << std::endl;
 	std::cout << "Avg time sse color: " << std::accumulate(times.sse_color.begin(), times.sse_color.end(), 0.0) / executions << " ms." << std::endl;
+	cv::waitKey(0);
 	return 0;
 }
