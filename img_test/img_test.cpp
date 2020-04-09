@@ -384,7 +384,15 @@ int BGR_segmentation(const std::string& file, const int& k, Times& times, const 
 		std::cerr << "Error reading file." << std::endl;
 		return -1;
 	}
-	add_channel(img);
+	int channels = img.channels();
+	if (channels == 3) {
+		add_channel(img);
+	}
+	else if (channels != 4) {
+		std::cerr << "Incorrect number of channels" << std::endl;
+		return -1;
+	}
+	
 	//cv::namedWindow(file + " initial", cv::WINDOW_NORMAL);
 	//cv::imshow(file + " intial", img);
 	auto img2 = img.clone(), img3 = img.clone(), img4 = img.clone(), img5 = img.clone();
